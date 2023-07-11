@@ -19,3 +19,7 @@ memoffset = "0.9.0"
 [[example]]
 name = "triangle"
 path = "examples/triangle/triangle.rs"
+[[example]]
+name = "shadertoy"
+path = "examples/shadertoy/shadertoy.rs"
+

@@ -1,7 +1,7 @@
 /*
 * Vulkan Example Base struct
 *
-* Copyright (C) by Auutesius
+* Copyright (C) by Caterpenthe
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
@@ -20,7 +20,6 @@ use glam::Vec2;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
-use std::mem;
 use std::sync::Arc;
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -38,10 +37,10 @@ pub struct Semaphores {
 
 impl Default for Semaphores {
     fn default() -> Self {
-        return Semaphores {
+        Semaphores {
             present_complete: vk::Semaphore::null(),
             render_complete: vk::Semaphore::null(),
-        };
+        }
     }
 }
 
@@ -66,12 +65,12 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        return Settings {
+        Settings {
             validation: true,
             fullscreen: None,
             vsync: false,
             overlay: false,
-        };
+        }
     }
 }
 
@@ -88,35 +87,26 @@ pub struct GamePadState {
 
 impl Default for GamePadState {
     fn default() -> Self {
-        return GamePadState {
+        GamePadState {
             axis_left: Vec2::new(0.0, 0.0),
             axis_right: Vec2::new(0.0, 0.0),
-        };
+        }
     }
 }
 
+#[derive(Default)]
 pub struct MouseButtons {
     left: bool,
     right: bool,
     middle: bool,
 }
 
-impl Default for MouseButtons {
-    fn default() -> Self {
-        return MouseButtons {
-            left: false,
-            right: false,
-            middle: false,
-        };
-    }
-}
+pub trait Example {
+    fn init(base: &mut ExampleApp) -> Self;
 
-pub trait ExampleSetup {
-    fn init(base: &mut ExampleBase) -> Self;
+    fn prepare(&mut self, base: &mut ExampleApp) -> VkResult<()>;
 
-    fn prepare(&mut self, base: &mut ExampleBase) -> VkResult<()>;
-
-    fn build_command_buffers(&mut self, base: &mut ExampleBase) {}
+    fn build_command_buffers(&mut self, base: &mut ExampleApp) {}
 
     fn setup_depth_stencil(
         depth_format: vk::Format,
@@ -224,10 +214,8 @@ pub trait ExampleSetup {
         color_format: vk::Format,
         depth_format: vk::Format,
     ) -> VkResult<vk::RenderPass> {
-        let mut attachments: Vec<vk::AttachmentDescription> = vec![];
-
-        // Color attachment
-        attachments.push(
+        let attachments: Vec<vk::AttachmentDescription> = vec![
+            // Color attachment
             vk::AttachmentDescription::builder()
                 .format(color_format)
                 .samples(vk::SampleCountFlags::TYPE_1)
@@ -237,10 +225,7 @@ pub trait ExampleSetup {
                 .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
                 .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
                 .build(),
-        );
-
-        // Depth attachment
-        attachments.push(
+            // Depth attachment
             vk::AttachmentDescription::builder()
                 .format(depth_format)
                 .samples(vk::SampleCountFlags::TYPE_1)
@@ -251,7 +236,7 @@ pub trait ExampleSetup {
                 .initial_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                 .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                 .build(),
-        );
+        ];
 
         let color_reference = vk::AttachmentReference::builder()
             .attachment(0)
@@ -270,9 +255,7 @@ pub trait ExampleSetup {
             .build();
 
         // Subpass dependencies for layout transitions
-        let mut dependencies: Vec<vk::SubpassDependency> = vec![];
-
-        dependencies.push(
+        let dependencies: Vec<vk::SubpassDependency> = vec![
             vk::SubpassDependency::builder()
                 .src_subpass(vk::SUBPASS_EXTERNAL)
                 .dst_subpass(0)
@@ -290,9 +273,6 @@ pub trait ExampleSetup {
                         | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 )
                 .build(),
-        );
-
-        dependencies.push(
             vk::SubpassDependency::builder()
                 .src_subpass(vk::SUBPASS_EXTERNAL)
                 .dst_subpass(0)
@@ -304,7 +284,7 @@ pub trait ExampleSetup {
                         | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
                 )
                 .build(),
-        );
+        ];
 
         let subpasses = [subpass_description];
         let render_pass_info = vk::RenderPassCreateInfo::builder()
@@ -442,7 +422,7 @@ pub struct RenderBackend {
 pub struct PhantomChain();
 unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for PhantomChain {}
 
-pub struct ExampleBase {
+pub struct ExampleApp {
     dest_width: u32,
     dest_height: u32,
     resizing: bool,
@@ -493,7 +473,7 @@ pub struct ExampleBase {
     event_loop: Option<EventLoop<()>>,
 }
 
-impl ExampleBase {
+impl ExampleApp {
     fn create_instance(&mut self, entry: &Entry, window: Arc<Window>) -> VkResult<Instance> {
         let app_info = vk::ApplicationInfo::builder()
             .application_name(self.name.as_c_str())
@@ -520,12 +500,12 @@ impl ExampleBase {
             for extension in extension_properties.iter() {
                 let extension_name = unsafe { CStr::from_ptr(extension.extension_name.as_ptr()) };
                 self.supported_instance_extensions
-                    .push(extension_name.into());
+                    .push(extension_name);
             }
         }
 
         // Enabled requested instance extensions
-        if self.enabled_instance_extensions.len() > 0 {
+        if !self.enabled_instance_extensions.is_empty() {
             for i in 0..self.enabled_instance_extensions.len() {
                 let enabled_instance_extension = &self.enabled_instance_extensions[i];
                 if self
@@ -533,7 +513,7 @@ impl ExampleBase {
                     .iter()
                     .any(|extension_name| enabled_instance_extension == extension_name)
                 {
-                    instance_extensions.push(enabled_instance_extension.clone().as_ptr());
+                    instance_extensions.push(enabled_instance_extension.as_ptr());
                 } else {
                     println!(
                         "Enabled instance extension \"{}\" is not present at instance level",
@@ -551,7 +531,7 @@ impl ExampleBase {
         let mut instance_create_info =
             vk::InstanceCreateInfo::builder().application_info(&app_info);
 
-        if instance_extensions.len() > 0 {
+        if !instance_extensions.is_empty() {
             if self.settings.validation {
                 instance_extensions.push(DebugUtils::name().as_ptr());
                 // SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
@@ -584,7 +564,7 @@ impl ExampleBase {
     }
     fn init_render_backend<E, F>(&mut self, window: Arc<Window>) -> VkResult<()>
     where
-        E: ExampleSetup + DeviceFeaturesCustomize<F>,
+        E: Example + DeviceFeaturesCustomize<F>,
         F: vk::ExtendsPhysicalDeviceFeatures2,
     {
         let _ = crate::tools::SimpleStat::new("init_render_backend");
@@ -641,7 +621,7 @@ impl ExampleBase {
         let swapchain = VulkanSwapChain::create(
             instance.clone(),
             vulkan_device.clone(),
-            surface.clone(),
+            surface,
             self.width,
             self.height,
             self.swapchain_desc.vsync,
@@ -651,7 +631,7 @@ impl ExampleBase {
         println!("init_render_backend:Swapchain created");
 
         // Find a suitable depth format
-        let depth_format = crate::tools::get_supported_depth_format(&*instance, physical_device)?;
+        let depth_format = crate::tools::get_supported_depth_format(&instance, physical_device)?;
 
         // Create synchronization objects
         let semaphores = E::setup_semaphores(&vulkan_device)?;
@@ -661,9 +641,8 @@ impl ExampleBase {
         // Set up submit info structure
         // Semaphores will stay the same during application lifetime
         // Command buffer submission info is set by each example
-        let submit_info;
         let submit_pipeline_stages = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
-        submit_info = vk::SubmitInfo::builder()
+        let submit_info = vk::SubmitInfo::builder()
             .wait_dst_stage_mask(std::slice::from_ref(&submit_pipeline_stages))
             .wait_semaphores(std::slice::from_ref(&semaphores.present_complete))
             .signal_semaphores(std::slice::from_ref(&semaphores.render_complete))
@@ -719,7 +698,7 @@ impl ExampleBase {
         // GPU selection
         // Select physical device to be used for the Vulkan example
         // Defaults to the first device unless specified by command line
-        let mut selected_device = 0;
+        let selected_device = 0;
         // todo: add command line argument for device selection
         let physical_devices = unsafe { instance.enumerate_physical_devices() }?;
         Ok(physical_devices[selected_device])
@@ -737,14 +716,11 @@ impl ExampleBase {
         self.prev_end = self.last_timestamp;
         let mut quit_message_received = false;
 
-        let mut event_loop = mem::replace(&mut self.event_loop, None).unwrap();
+        let mut event_loop = self.event_loop.take().unwrap();
         let mut events = Vec::new();
         while !quit_message_received {
-            // puffin::profile_scope!("main loop");
-            // puffin::GlobalProfiler::lock().new_frame();
             let ui_wants_mouse = false;
             event_loop.run_return(|event, _, control_flow| {
-                // puffin::profile_scope!("event handler");
 
                 *control_flow = ControlFlow::Poll;
 
@@ -815,7 +791,7 @@ impl ExampleBase {
         // puffin::profile_scope!("frame");
 
         let start = puffin::now_ns();
-        if (self.view_updated) {
+        if self.view_updated {
             self.view_updated = false;
             self.view_changed();
         }
@@ -826,7 +802,7 @@ impl ExampleBase {
 
         self.frame_timer = (end - start) as f32 / 1000000.0;
 
-        self.camera.update(self.frame_timer as f32);
+        self.camera.update(self.frame_timer);
         if self.camera.moving() {
             self.view_updated = true;
         }
@@ -839,10 +815,10 @@ impl ExampleBase {
             }
         }
 
-        let fps_timer = chrono::Duration::nanoseconds((end - self.last_timestamp) as i64)
+        let fps_timer = chrono::Duration::nanoseconds(end - self.last_timestamp)
             .num_milliseconds() as f64;
         if fps_timer > 1000.0 {
-            self.last_fps = self.frame_counter as f64 * (1000.0 / fps_timer as f64);
+            self.last_fps = self.frame_counter as f64 * (1000.0 / fps_timer);
             self.window.set_title(&format!(
                 "{} - {:.2} fps",
                 self.title.to_string_lossy(),
@@ -858,18 +834,18 @@ impl ExampleBase {
 
     fn view_changed(&mut self) {}
 
-    pub fn builder<E, F>() -> ExampleBuilder<E, F>
+    pub fn builder<E, F>() -> ExampleAppBuilder<E, F>
     where
-        E: ExampleSetup + DeviceFeaturesCustomize<F>,
+        E: Example + DeviceFeaturesCustomize<F>,
         F: vk::ExtendsPhysicalDeviceFeatures2,
     {
-        ExampleBuilder::new()
+        ExampleAppBuilder::new()
     }
 }
 
-pub struct ExampleBuilder<E, F>
+pub struct ExampleAppBuilder<E, F>
 where
-    E: ExampleSetup + DeviceFeaturesCustomize<F>,
+    E: Example + DeviceFeaturesCustomize<F>,
     F: vk::ExtendsPhysicalDeviceFeatures2,
 {
     settings: Settings,
@@ -890,17 +866,46 @@ where
     _marker: PhantomData<E>,
 }
 
-impl<E, F> ExampleBuilder<E, F>
+impl<E, F> Default for ExampleAppBuilder<E, F>
+    where
+        E: Example + DeviceFeaturesCustomize<F>,
+        F: vk::ExtendsPhysicalDeviceFeatures2,{
+    fn default() -> Self {
+        ExampleAppBuilder {
+            settings: Settings::default(),
+            width: 1280,
+            height: 720,
+            camera: Camera::new(),
+            name: CString::new(String::from("Vulkan Example")).unwrap(),
+            title: CString::new(String::from("Vulkan Example")).unwrap(),
+            swapchain_desc: SwapchainDesc {
+                vsync: false,
+                full_screen: false,
+            },
+            shader_dir: String::from("shaders"),
+
+            enabled_instance_extensions: vec![],
+
+            device_create_next_chain: None,
+
+            window_builder: WindowBuilder::new(),
+
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<E, F> ExampleAppBuilder<E, F>
 where
-    E: ExampleSetup + DeviceFeaturesCustomize<F>,
+    E: Example + DeviceFeaturesCustomize<F>,
     F: vk::ExtendsPhysicalDeviceFeatures2,
 {
-    pub fn build(self) -> VkResult<ExampleBase> {
+    pub fn build(self) -> VkResult<ExampleApp> {
         let mut window_builder = self.window_builder;
         window_builder = window_builder
             .with_title(self.name.to_str().unwrap_or_default())
             .with_inner_size(winit::dpi::PhysicalSize::new(self.width, self.height));
-        let mut event_loop = EventLoop::new();
+        let event_loop = EventLoop::new();
         if let Some(fullscreen) = &self.settings.fullscreen {
             window_builder = window_builder.with_fullscreen(match fullscreen {
                 FullscreenMode::Borderless => Some(Fullscreen::Borderless(None)),
@@ -916,7 +921,7 @@ where
         }
         let window = Arc::new(window_builder.build(&event_loop).expect("window"));
 
-        let mut vulkan_example = ExampleBase {
+        let mut vulkan_example = ExampleApp {
             dest_width: 0,
             dest_height: 0,
             resizing: false,
@@ -972,28 +977,9 @@ where
     }
 
     pub fn new() -> Self {
-        ExampleBuilder {
-            settings: Settings::default(),
-            width: 1280,
-            height: 720,
-            camera: Camera::new(),
-            name: CString::new(String::from("Vulkan Example")).unwrap(),
-            title: CString::new(String::from("Vulkan Example")).unwrap(),
-            swapchain_desc: SwapchainDesc {
-                vsync: false,
-                full_screen: false,
-            },
-            shader_dir: String::from("shaders"),
-
-            enabled_instance_extensions: vec![],
-
-            device_create_next_chain: None,
-
-            window_builder: WindowBuilder::new(),
-
-            _marker: PhantomData,
-        }
+        Self::default()
     }
+
     pub fn settings(mut self, settings: Settings) -> Self {
         self.settings = settings;
         self

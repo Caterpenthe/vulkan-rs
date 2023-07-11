@@ -132,13 +132,13 @@ impl Default for Triangle {
     }
 }
 
-impl ExampleSetup for Triangle {
-    fn init(base: &mut ExampleBase) -> Self {
+impl Example for Triangle {
+    fn init(app: &mut ExampleApp) -> Self {
         Self::default()
     }
 
-    fn prepare(&mut self, base: &mut ExampleBase) -> VkResult<()> {
-        if let ExampleBase {
+    fn prepare(&mut self, app: &mut ExampleApp) -> VkResult<()> {
+        if let ExampleApp {
             camera,
             shader_dir,
             backend:
@@ -152,7 +152,7 @@ impl ExampleSetup for Triangle {
                     ..
                 }),
             ..
-        } = base
+        } = app
         {
             self.prepare_synchronization_primitives(device, draw_cmd_buffers)?;
             self.prepare_vertices(device, cmd_pool, USE_STAGING)?;
@@ -163,7 +163,7 @@ impl ExampleSetup for Triangle {
             self.setup_descriptor_pool(device, descriptor_pool)?;
             self.setup_descriptor_set(device, descriptor_pool)?;
             if !DRAW_EVERY_FRAME {
-                self.build_command_buffers(base);
+                self.build_command_buffers(app);
             }
         } else {
             return Err(vk::Result::ERROR_INITIALIZATION_FAILED);
@@ -172,8 +172,8 @@ impl ExampleSetup for Triangle {
         Ok(())
     }
 
-    fn build_command_buffers(&mut self, base: &mut ExampleBase) {
-        if let ExampleBase {
+    fn build_command_buffers(&mut self, app: &mut ExampleApp) {
+        if let ExampleApp {
             width,
             height,
             backend:
@@ -186,7 +186,7 @@ impl ExampleSetup for Triangle {
                     ..
                 }),
             ..
-        } = base
+        } = app
         {
             let cmd_buf_info = vk::CommandBufferBeginInfo::builder();
 
@@ -225,7 +225,7 @@ impl ExampleSetup for Triangle {
                         .begin_command_buffer(*draw_cmd_buffer, &cmd_buf_info)
                         .expect("Failed to begin command buffer");
 
-                    // Start the first sub pass specified in our default render pass setup by the base class
+                    // Start the first sub pass specified in our default render pass setup by the app class
                     // This will clear the color and depth attachment
                     device.logical_device.cmd_begin_render_pass(
                         *draw_cmd_buffer,
@@ -393,10 +393,8 @@ impl ExampleSetup for Triangle {
         // This example will use a single render pass with one subpass
 
         // Descriptors for the attachments used by this renderpass
-        let mut attachments: Vec<vk::AttachmentDescription> = vec![];
-
-        // Color attachment
-        attachments.push(
+        let attachments: Vec<vk::AttachmentDescription> = vec![
+            // Color attachment
             vk::AttachmentDescription::builder()
                 .format(color_format)
                 .samples(vk::SampleCountFlags::TYPE_1)
@@ -407,10 +405,7 @@ impl ExampleSetup for Triangle {
                 .initial_layout(vk::ImageLayout::UNDEFINED)
                 .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
                 .build(),
-        );
-
-        // Depth attachment
-        attachments.push(
+            // Depth attachment
             vk::AttachmentDescription::builder()
                 .format(depth_format)
                 .samples(vk::SampleCountFlags::TYPE_1)
@@ -421,7 +416,7 @@ impl ExampleSetup for Triangle {
                 .initial_layout(vk::ImageLayout::UNDEFINED)
                 .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                 .build(),
-        );
+        ];
 
         // Setup attachment references
         let color_reference = vk::AttachmentReference::builder()
@@ -449,9 +444,7 @@ impl ExampleSetup for Triangle {
         // Note: VK_SUBPASS_EXTERNAL is a special constant that refers to all commands executed outside of the actual renderpass)
 
         // Subpass dependencies for layout transitions
-        let mut dependencies: Vec<vk::SubpassDependency> = vec![];
-
-        dependencies.push(
+        let dependencies: Vec<vk::SubpassDependency> = vec![
             vk::SubpassDependency::builder()
                 .src_subpass(vk::SUBPASS_EXTERNAL)
                 .dst_subpass(0)
@@ -469,9 +462,6 @@ impl ExampleSetup for Triangle {
                         | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 )
                 .build(),
-        );
-
-        dependencies.push(
             vk::SubpassDependency::builder()
                 .src_subpass(vk::SUBPASS_EXTERNAL)
                 .dst_subpass(0)
@@ -483,7 +473,7 @@ impl ExampleSetup for Triangle {
                         | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
                 )
                 .build(),
-        );
+        ];
 
         let subpasses = [subpass];
         let render_pass_info = vk::RenderPassCreateInfo::builder()
@@ -551,15 +541,15 @@ impl Triangle {
         let vertex_buffer = [
             Vertex {
                 pos: Vec4::new(-1.0, 1.0, 0.0, 1.0),
-                color:  Vec4::new(0.0, 1.0, 0.0, 1.0),
+                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
             },
             Vertex {
-                pos:  Vec4::new(1.0, 1.0, 0.0, 1.0),
-                color:  Vec4::new(0.0, 0.0, 1.0, 1.0),
+                pos: Vec4::new(1.0, 1.0, 0.0, 1.0),
+                color: Vec4::new(0.0, 0.0, 1.0, 1.0),
             },
             Vertex {
-                pos:  Vec4::new(0.0, -1.0, 0.0, 1.0),
-                color:  Vec4::new(1.0, 0.0, 0.0, 1.0),
+                pos: Vec4::new(0.0, -1.0, 0.0, 1.0),
+                color: Vec4::new(1.0, 0.0, 0.0, 1.0),
             },
         ];
         let vertex_buffer_size = size_of::<Vertex>() as u64 * vertex_buffer.len() as u64;
@@ -976,7 +966,7 @@ impl Triangle {
         // Get the memory type index that supports host visible memory access
         // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
         // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular base
+        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular app
         alloc_info = alloc_info.memory_type_index(get_memory_type_index(
             mem_reqs.memory_type_bits,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -1330,8 +1320,8 @@ impl Triangle {
         Ok(())
     }
 
-    fn record_submit_command_buffer(&mut self, base: &mut ExampleBase) {
-        if let ExampleBase {
+    fn record_submit_command_buffer(&mut self, app: &mut ExampleApp) {
+        if let ExampleApp {
             width,
             height,
             backend:
@@ -1344,7 +1334,7 @@ impl Triangle {
                     ..
                 }),
             ..
-        } = base
+        } = app
         {
             // Use a fence to wait until the command buffer has finished execution before using it again
             unsafe {
@@ -1377,7 +1367,7 @@ impl Triangle {
                 vk::ClearValue {
                     depth_stencil: vk::ClearDepthStencilValue {
                         depth: 1.0,
-                        stencil: 0
+                        stencil: 0,
                     },
                 },
             ];
@@ -1402,7 +1392,7 @@ impl Triangle {
                     .begin_command_buffer(draw_cmd_buffer, &cmd_buf_info)
                     .expect("Failed to begin command buffer");
 
-                // Start the first sub pass specified in our default render pass setup by the base class
+                // Start the first sub pass specified in our default render pass setup by the app class
                 // This will clear the color and depth attachment
                 device.logical_device.cmd_begin_render_pass(
                     draw_cmd_buffer,
@@ -1425,10 +1415,10 @@ impl Triangle {
 
                 // Update dynamic scissor state
                 let scissors = [vk::Extent2D {
-                        width: *width,
-                        height: *height,
-                    }.into()
-                ];
+                    width: *width,
+                    height: *height,
+                }
+                .into()];
                 device
                     .logical_device
                     .cmd_set_scissor(draw_cmd_buffer, 0, &scissors);
@@ -1490,8 +1480,8 @@ impl Triangle {
         }
     }
 
-    fn draw(&mut self, base: &mut ExampleBase) {
-        let res = base
+    fn draw(&mut self, app: &mut ExampleApp) {
+        let res = app
             .backend
             .as_mut()
             .unwrap()
@@ -1499,7 +1489,7 @@ impl Triangle {
             .acquire_next_image(self.present_complete_semaphore);
         match res {
             Ok((index, _)) => {
-                base.backend.as_mut().unwrap().current_buffer = index;
+                app.backend.as_mut().unwrap().current_buffer = index;
             }
             _ => {
                 panic!("Failed to acquire next image");
@@ -1507,10 +1497,10 @@ impl Triangle {
         };
 
         if DRAW_EVERY_FRAME {
-            self.record_submit_command_buffer(base);
+            self.record_submit_command_buffer(app);
         }
 
-        if let ExampleBase {
+        if let ExampleApp {
             backend:
                 Some(RenderBackend {
                     vulkan_device: device,
@@ -1520,7 +1510,7 @@ impl Triangle {
                     ..
                 }),
             ..
-        } = base
+        } = app
         {
             if !DRAW_EVERY_FRAME {
                 // Use a fence to wait until the command buffer has finished execution before using it again
@@ -1528,7 +1518,9 @@ impl Triangle {
                     device
                         .logical_device
                         .wait_for_fences(
-                            std::slice::from_ref(&self.queue_complete_fences[*current_buffer as usize]),
+                            std::slice::from_ref(
+                                &self.queue_complete_fences[*current_buffer as usize],
+                            ),
                             true,
                             u64::MAX,
                         )
@@ -1694,7 +1686,6 @@ fn load_spirv_shader(device: &VulkanDevice, path: &std::path::Path) -> VkResult<
 impl DeviceFeaturesCustomize<PhantomChain> for Triangle {}
 
 fn main() -> VkResult<()> {
-
     let width = 1280;
     let height = 720;
     let mut camera = Camera::new();
@@ -1702,7 +1693,7 @@ fn main() -> VkResult<()> {
     camera.set_position(Vec3::new(0.0, 0.0, -1.5));
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
-    let mut base: ExampleBase = ExampleBase::builder::<Triangle, PhantomChain>()
+    let mut app: ExampleApp = ExampleApp::builder::<Triangle, PhantomChain>()
         .title("Vulkan Example - Basic indexed triangle")
         .settings(Settings {
             validation: true,
@@ -1714,13 +1705,13 @@ fn main() -> VkResult<()> {
         .height(height)
         .camera(camera)
         .build()?;
-    let mut example = Triangle::init(&mut base);
-    let mut frame_fn = |base: &mut ExampleBase| {
-        if !base.prepared {
-            example.prepare(base).expect("Failed to prepare example");
-            base.prepared = true;
+    let mut example = Triangle::init(&mut app);
+    let mut frame_fn = |app: &mut ExampleApp| {
+        if !app.prepared {
+            example.prepare(app).expect("Failed to prepare example");
+            app.prepared = true;
         }
-        example.draw(base);
+        example.draw(app);
     };
-    base.render_loop(&mut frame_fn)
+    app.render_loop(&mut frame_fn)
 }

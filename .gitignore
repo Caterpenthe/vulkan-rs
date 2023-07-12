@@ -1,3 +1,7 @@
 /target
 /.idea
 *.log
+/assets/shaders/glsl/shadertoy/heart_2d.frag
+/assets/shaders/glsl/shadertoy/heart_2d.frag.spv
+/assets/shaders/glsl/shadertoy/heart_3d.frag
+/assets/shaders/glsl/shadertoy/heart_3d.frag.spv

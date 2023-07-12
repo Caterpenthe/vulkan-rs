@@ -87,6 +87,8 @@ pub struct ShaderToy {
 
     uniform_buffer_fs: UniformBuffer,
 
+    channel0: UniformBuffer,
+
     ubo_vs: UboVS,
 
     ubo_fs: UboFS,
@@ -144,6 +146,11 @@ impl Default for ShaderToy {
                 descriptor: vk::DescriptorBufferInfo::default(),
             },
             uniform_buffer_fs: UniformBuffer {
+                buffer: vk::Buffer::null(),
+                memory: vk::DeviceMemory::null(),
+                descriptor: vk::DescriptorBufferInfo::default(),
+            },
+            channel0: UniformBuffer {
                 buffer: vk::Buffer::null(),
                 memory: vk::DeviceMemory::null(),
                 descriptor: vk::DescriptorBufferInfo::default(),
@@ -1089,6 +1096,52 @@ impl ShaderToy {
             descriptor,
         };
 
+        // sampler2d Channel0
+        let image_size = (size_of::<u8>() * 1024 * 1024);
+        let mut alloc_info = vk::MemoryAllocateInfo::builder()
+            .allocation_size(0)
+            .memory_type_index(0);
+        let buffer_info = vk::BufferCreateInfo::builder()
+            .size(image_size as u64)
+            .usage(vk::BufferUsageFlags::TRANSFER_SRC);
+
+        // Create a new buffer
+        let buffer = unsafe { device.logical_device.create_buffer(&buffer_info, None)? };
+
+        // Get memory requirements including size, alignment and memory type
+        let mem_reqs = unsafe { device.logical_device.get_buffer_memory_requirements(buffer) };
+        alloc_info = alloc_info.allocation_size(mem_reqs.size);
+        // Get the memory type index that supports host visible memory access
+        // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
+        // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
+        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular app
+        alloc_info = alloc_info.memory_type_index(get_memory_type_index(
+            mem_reqs.memory_type_bits,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            device.memory_properties,
+        ));
+        // Allocate memory for the uniform buffer
+        let memory = unsafe { device.logical_device.allocate_memory(&alloc_info, None)? };
+        // Bind memory to buffer
+        unsafe {
+            device
+                .logical_device
+                .bind_buffer_memory(buffer, memory, 0)?;
+        }
+
+        // Store information in the uniform's descriptor that is used by the descriptor set
+        let descriptor = vk::DescriptorBufferInfo::builder()
+            .buffer(buffer)
+            .offset(0)
+            .range(image_size as u64)
+            .build();
+
+        self.channel0 = UniformBuffer {
+            buffer,
+            memory,
+            descriptor,
+        };
+
         Ok(())
     }
 
@@ -1174,6 +1227,12 @@ impl ShaderToy {
             vk::DescriptorSetLayoutBinding::builder()
                 .binding(1)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+                .build(),
+            vk::DescriptorSetLayoutBinding::builder()
+                .binding(2)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                 .descriptor_count(1)
                 .stage_flags(vk::ShaderStageFlags::FRAGMENT)
                 .build(),
@@ -1326,7 +1385,8 @@ impl ShaderToy {
         let mut vert_shader_path = vulkan_rs::tools::get_shader_path();
         vert_shader_path.push(shader_dir.clone() + "/shadertoy/shadertoy.vert.spv");
         let mut frag_shader_path = vulkan_rs::tools::get_shader_path();
-        frag_shader_path.push(shader_dir.clone() + "/shadertoy/" + self.shader_name.as_str() +".frag.spv");
+        frag_shader_path
+            .push(shader_dir.clone() + "/shadertoy/" + self.shader_name.as_str() + ".frag.spv");
         let name = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") };
         // Shaders
         let shader_stages = [
@@ -1403,6 +1463,10 @@ impl ShaderToy {
                 ty: vk::DescriptorType::UNIFORM_BUFFER,
                 descriptor_count: 1,
             },
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::UNIFORM_BUFFER,
+                descriptor_count: 1,
+            },
         ];
 
         // Create the global descriptor pool
@@ -1440,6 +1504,108 @@ impl ShaderToy {
         // For every binding point used in a shader there needs to be one
         // descriptor set matching that binding point
 
+        let texture_create_info = vk::ImageCreateInfo {
+            image_type: vk::ImageType::TYPE_2D,
+            format: vk::Format::R8G8B8A8_UNORM,
+            extent: vk::Extent3D {
+                width: 1024,
+                height: 1024,
+                depth: 1,
+            },
+            mip_levels: 1,
+            array_layers: 1,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling: vk::ImageTiling::OPTIMAL,
+            usage: vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+        let texture_image = unsafe {
+            device
+                .logical_device
+                .create_image(&texture_create_info, None)
+                .unwrap()
+        };
+
+        let texture_memory_req = unsafe {
+            device
+                .logical_device
+                .get_image_memory_requirements(texture_image)
+        };
+        let texture_memory_index = get_memory_type_index(
+            texture_memory_req.memory_type_bits,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            device.memory_properties,
+        );
+
+        let texture_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: texture_memory_req.size,
+            memory_type_index: texture_memory_index,
+            ..Default::default()
+        };
+        let texture_memory = unsafe {
+            device
+                .logical_device
+                .allocate_memory(&texture_allocate_info, None)
+                .unwrap()
+        };
+        unsafe {
+            device
+                .logical_device
+                .bind_image_memory(texture_image, texture_memory, 0)
+                .expect("Unable to bind depth image memory")
+        };
+
+        let tex_image_view_info = vk::ImageViewCreateInfo {
+            view_type: vk::ImageViewType::TYPE_2D,
+            format: vk::Format::R8G8B8A8_UNORM,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::R,
+                g: vk::ComponentSwizzle::G,
+                b: vk::ComponentSwizzle::B,
+                a: vk::ComponentSwizzle::A,
+            },
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                level_count: 1,
+                layer_count: 1,
+                ..Default::default()
+            },
+            image: texture_image,
+            ..Default::default()
+        };
+        let tex_image_view = unsafe {
+            device
+                .logical_device
+                .create_image_view(&tex_image_view_info, None)
+                .unwrap()
+        };
+
+        let sampler_info = vk::SamplerCreateInfo {
+            mag_filter: vk::Filter::LINEAR,
+            min_filter: vk::Filter::LINEAR,
+            mipmap_mode: vk::SamplerMipmapMode::LINEAR,
+            address_mode_u: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_v: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_w: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            max_anisotropy: 1.0,
+            border_color: vk::BorderColor::FLOAT_OPAQUE_WHITE,
+            compare_op: vk::CompareOp::NEVER,
+            ..Default::default()
+        };
+
+        let sampler = unsafe {
+            device
+                .logical_device
+                .create_sampler(&sampler_info, None)
+                .unwrap()
+        };
+        let tex_descriptor = vk::DescriptorImageInfo {
+            image_layout: vk::ImageLayout::UNDEFINED,
+            image_view: tex_image_view,
+            sampler,
+        };
+
         let write_descriptor_sets = [
             // Binding 0 : Uniform buffer
             //	Variable descriptor count using descriptorCount and pImageInfo
@@ -1454,6 +1620,13 @@ impl ShaderToy {
                 .dst_binding(1)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .buffer_info(&[self.uniform_buffer_fs.descriptor])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(descriptor_sets[0])
+                .dst_binding(2)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .buffer_info(&[self.uniform_buffer_fs.descriptor])
+                .image_info(&[tex_descriptor])
                 .build(),
         ];
 
@@ -1833,6 +2006,12 @@ fn load_spirv_shader(device: &VulkanDevice, path: &std::path::Path) -> VkResult<
 impl DeviceFeaturesCustomize<PhantomChain> for ShaderToy {}
 
 fn main() -> VkResult<()> {
+    let shader_name = String::from("meon_love");
+    //let shader_name = String::from("heart_2d");
+    //let  shader_name = String::from("heart_3d");
+    //let shader_name = String::from("glass_and_metal_heart");
+    let title = String::from("ShaderToy Example - ") + shader_name.as_str();
+
     let width = 1920;
     let height = 1080;
     let mut camera = Camera::new();
@@ -1841,7 +2020,7 @@ fn main() -> VkResult<()> {
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
     let mut app: ExampleApp = ExampleApp::builder::<ShaderToy, PhantomChain>()
-        .title("Vulkan Example - Basic indexed triangle")
+        .title(title.as_str())
         .settings(Settings {
             validation: true,
             fullscreen: None,
@@ -1854,9 +2033,7 @@ fn main() -> VkResult<()> {
         .build()?;
     let mut example = ShaderToy::init(&mut app);
 
-    example.shader_name = String::from("meon_love");
-    // example.shader_name = String::from("heart_2d");
-    // example.shader_name = String::from("heart_3d");
+    example.shader_name = shader_name;
 
     let mut frame_fn = |app: &mut ExampleApp| {
         if !app.prepared {
@@ -1879,7 +2056,7 @@ fn main() -> VkResult<()> {
             sample_rate: 0.0,
         };
 
-        // Map uniform buffer and update it
+        // Update uniform buffer
         let mut aligned_ubo_fs = example.aligned_ubo_fs.take().unwrap();
         aligned_ubo_fs.copy_from_slice(std::slice::from_ref(&example.ubo_fs));
         example.aligned_ubo_fs = Some(aligned_ubo_fs);

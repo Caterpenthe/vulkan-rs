@@ -1,11 +1,11 @@
 pub mod debug {
-    use ash::{Entry, vk};
+    use ash::extensions::ext::DebugUtils;
+    use ash::prelude::VkResult;
     pub use ash::Instance;
+    use ash::{vk, Entry};
     use std::borrow::Cow;
     use std::ffi::CStr;
     use std::os::raw::c_char;
-    use ash::extensions::ext::DebugUtils;
-    use ash::prelude::VkResult;
 
     pub fn message_callback(
         flags: vk::DebugReportFlagsEXT,
@@ -37,7 +37,10 @@ pub mod debug {
 
         ash::vk::FALSE
     }
-    pub fn setup_debugging(entry: &Entry, instance: &Instance) -> VkResult<vk::DebugUtilsMessengerEXT> {
+    pub fn setup_debugging(
+        entry: &Entry,
+        instance: &Instance,
+    ) -> VkResult<vk::DebugUtilsMessengerEXT> {
         let debug_call_back;
         let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
             .message_severity(
@@ -54,8 +57,7 @@ pub mod debug {
 
         let debug_utils_loader = DebugUtils::new(&entry, &instance);
         unsafe {
-            debug_call_back = debug_utils_loader
-                .create_debug_utils_messenger(&debug_info, None)?;
+            debug_call_back = debug_utils_loader.create_debug_utils_messenger(&debug_info, None)?;
         }
         Ok(debug_call_back)
     }

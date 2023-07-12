@@ -423,22 +423,22 @@ pub struct PhantomChain();
 unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for PhantomChain {}
 
 pub struct ExampleApp {
-    dest_width: u32,
-    dest_height: u32,
-    resizing: bool,
+    pub dest_width: u32,
+    pub dest_height: u32,
+    pub resizing: bool,
     /// Frame counter to display fps
-    frame_counter: i64,
-    last_fps: f64,
-    last_timestamp: i64,
-    prev_end: i64,
-    supported_instance_extensions: Vec<&'static CStr>,
+    pub frame_counter: i64,
+    pub last_fps: f64,
+    pub last_timestamp: i64,
+    pub prev_end: i64,
+    pub supported_instance_extensions: Vec<&'static CStr>,
     /// Set of device extensions to be enabled for this example (must be set in the derived constructor)
-    enabled_device_extensions: Vec<&'static CStr>,
-    enabled_instance_extensions: Vec<&'static CStr>,
+    pub enabled_device_extensions: Vec<&'static CStr>,
+    pub enabled_instance_extensions: Vec<&'static CStr>,
     /// Set of physical device features to be enabled for this example (must be set in the derived constructor)
-    enabled_features: vk::PhysicalDeviceFeatures,
+    pub enabled_features: vk::PhysicalDeviceFeatures,
 
-    swapchain_desc: SwapchainDesc,
+    pub swapchain_desc: SwapchainDesc,
 
     pub prepared: bool,
 
@@ -499,8 +499,7 @@ impl ExampleApp {
         if let Ok(extension_properties) = entry.enumerate_instance_extension_properties(None) {
             for extension in extension_properties.iter() {
                 let extension_name = unsafe { CStr::from_ptr(extension.extension_name.as_ptr()) };
-                self.supported_instance_extensions
-                    .push(extension_name);
+                self.supported_instance_extensions.push(extension_name);
             }
         }
 
@@ -721,7 +720,6 @@ impl ExampleApp {
         while !quit_message_received {
             let ui_wants_mouse = false;
             event_loop.run_return(|event, _, control_flow| {
-
                 *control_flow = ControlFlow::Poll;
 
                 let mut allow_event = true;
@@ -815,8 +813,8 @@ impl ExampleApp {
             }
         }
 
-        let fps_timer = chrono::Duration::nanoseconds(end - self.last_timestamp)
-            .num_milliseconds() as f64;
+        let fps_timer =
+            chrono::Duration::nanoseconds(end - self.last_timestamp).num_milliseconds() as f64;
         if fps_timer > 1000.0 {
             self.last_fps = self.frame_counter as f64 * (1000.0 / fps_timer);
             self.window.set_title(&format!(
@@ -867,9 +865,10 @@ where
 }
 
 impl<E, F> Default for ExampleAppBuilder<E, F>
-    where
-        E: Example + DeviceFeaturesCustomize<F>,
-        F: vk::ExtendsPhysicalDeviceFeatures2,{
+where
+    E: Example + DeviceFeaturesCustomize<F>,
+    F: vk::ExtendsPhysicalDeviceFeatures2,
+{
     fn default() -> Self {
         ExampleAppBuilder {
             settings: Settings::default(),

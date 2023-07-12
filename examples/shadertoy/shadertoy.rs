@@ -3,10 +3,13 @@
 use ash::prelude::VkResult;
 use ash::util::Align;
 use ash::vk;
+use chrono::format::Numeric::Timestamp;
 use glam::{Vec3, Vec4};
 use memoffset::offset_of;
 use std::ffi::CStr;
 use std::mem::{align_of, size_of};
+use std::thread::sleep;
+use std::time::Duration;
 use vulkan_rs::camera::{Camera, CameraType};
 use vulkan_rs::vulkan_device::VulkanDevice;
 use vulkan_rs::vulkan_example_base::*;
@@ -51,19 +54,20 @@ struct UboVS {
     model_matrix: glam::Mat4,
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct UboFS {
-    resolution: Vec3, //image/buffer	The viewport resolution (z is pixel aspect ratio, usually 1.0)
-    time: f32,        //image/sound/buffer	Current time in seconds
-    time_delta: f32,  //image/buffer	Time it takes to render a frame, in seconds
-    // frame: i32,       //image/buffer	Current frame
-    // frame_ate: f32,   //image/buffer	Number of frames rendered per second
-    // channel_time: [f32; 4], //image/buffer	Time for channel (if video or sound), in seconds
     // channel_resolution: [Vec3; 4], //image/buffer/sound	Input texture resolution for each channel
-    // mouse: Vec4,      //image/buffer	xy = current pixel coords (if LMB is down). zw = click pixel
-    // // sampler2D	iChannel{i}	//image/buffer/sound	Sampler for input textures i
-    // date: Vec4,       //image/buffer/sound	Year, month, day, time in seconds in .xyzw
-    // sample_rate: f32, //image/buffer/sound	The sound sample rate (typically 44100)
+    // channel_time: [f32; 4], //image/buffer	Time for channel (if video or sound), in seconds
+    mouse: Vec4, //image/buffer	xy = current pixel coords (if LMB is down). zw = click pixel
+    date: Vec4,  //image/buffer/sound	Year, month, day, time in seconds in .xyzw
+    resolution: Vec3, //image/buffer	The viewport resolution (z is pixel aspect ratio, usually 1.0)
+    time: f32,   //image/sound/buffer	Current time in seconds
+    time_delta: f32, //image/buffer	Time it takes to render a frame, in seconds
+    frame: i32,  //image/buffer	Current frame
+    frame_ate: f32, //image/buffer	Number of frames rendered per second
+    sample_rate: f32, //image/buffer/sound	The sound sample rate (typically 44100)
+
+                 // // sampler2D	iChannel{i}	//image/buffer/sound	Sampler for input textures i
 }
 
 /// Index buffer
@@ -73,7 +77,7 @@ struct IndexBuffer {
     count: u32,
 }
 
-pub struct Triangle {
+pub struct ShaderToy {
     /// Vertex buffer and attributes
     vertices: VertexBuffer,
     /// Index buffer
@@ -118,11 +122,13 @@ pub struct Triangle {
     /// Fences
     /// Used to check the completion of queue operations (e.g. command buffer execution)
     queue_complete_fences: Vec<vk::Fence>,
+
+    shader_name: String,
 }
 
-impl Default for Triangle {
+impl Default for ShaderToy {
     fn default() -> Self {
-        Triangle {
+        ShaderToy {
             vertices: VertexBuffer {
                 buffer: vk::Buffer::null(),
                 memory: vk::DeviceMemory::null(),
@@ -148,16 +154,16 @@ impl Default for Triangle {
                 model_matrix: glam::Mat4::IDENTITY,
             },
             ubo_fs: UboFS {
+                mouse: Default::default(),
+                date: Default::default(),
                 resolution: Default::default(),
-                time: 0.5,
-                time_delta: 0.5,
-                // frame: 0,
-                // frame_ate: 0.5,
                 // channel_time: [0.0; 4],
                 // channel_resolution: [Vec3::default(); 4],
-                // mouse: Default::default(),
-                // date: Default::default(),
-                // sample_rate: 0.0,
+                time: 0.5,
+                time_delta: 0.5,
+                frame: 0,
+                frame_ate: 0.5,
+                sample_rate: 0.0,
             },
             aligned_ubo_fs: None,
             pipeline_layout: vk::PipelineLayout::null(),
@@ -167,11 +173,12 @@ impl Default for Triangle {
             present_complete_semaphore: vk::Semaphore::null(),
             render_complete_semaphore: vk::Semaphore::null(),
             queue_complete_fences: vec![],
+            shader_name: String::from("meon_love"),
         }
     }
 }
 
-impl Example for Triangle {
+impl Example for ShaderToy {
     fn init(app: &mut ExampleApp) -> Self {
         Self::default()
     }
@@ -528,7 +535,7 @@ impl Example for Triangle {
     }
 }
 
-impl Triangle {
+impl ShaderToy {
     fn prepare_synchronization_primitives(
         &mut self,
         device: &VulkanDevice,
@@ -1113,16 +1120,16 @@ impl Triangle {
         }
 
         self.ubo_fs = UboFS {
+            mouse: Default::default(),
+            date: Default::default(),
             resolution: Default::default(),
-            time: self.ubo_fs.time + 0.1,
-            time_delta: self.ubo_fs.time_delta + 1.0,
-            // frame: self.ubo_fs.frame + 1,
-            // frame_ate: self.ubo_fs.frame_ate + 1.0,
             // channel_time: [0.0; 4],
             // channel_resolution: [Vec3::default(); 4],
-            // mouse: Default::default(),
-            // date: Default::default(),
-            // sample_rate: 0.0,
+            time: 0.5,
+            time_delta: 0.5,
+            frame: 0,
+            frame_ate: 0.5,
+            sample_rate: 0.0,
         };
         if self.ubo_fs.time >= 1.0 {
             self.ubo_fs.time = 0.0;
@@ -1319,7 +1326,7 @@ impl Triangle {
         let mut vert_shader_path = vulkan_rs::tools::get_shader_path();
         vert_shader_path.push(shader_dir.clone() + "/shadertoy/shadertoy.vert.spv");
         let mut frag_shader_path = vulkan_rs::tools::get_shader_path();
-        frag_shader_path.push(shader_dir.clone() + "/shadertoy/shadertoy.frag.spv");
+        frag_shader_path.push(shader_dir.clone() + "/shadertoy/" + self.shader_name.as_str() +".frag.spv");
         let name = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") };
         // Shaders
         let shader_stages = [
@@ -1402,7 +1409,7 @@ impl Triangle {
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::builder()
             .pool_sizes(&pool_sizes)
             // Set the max. number of sets that can be requested
-            .max_sets(2);
+            .max_sets(1);
 
         *descriptor_pool = unsafe {
             device
@@ -1823,7 +1830,7 @@ fn load_spirv_shader(device: &VulkanDevice, path: &std::path::Path) -> VkResult<
     }
 }
 
-impl DeviceFeaturesCustomize<PhantomChain> for Triangle {}
+impl DeviceFeaturesCustomize<PhantomChain> for ShaderToy {}
 
 fn main() -> VkResult<()> {
     let width = 1920;
@@ -1833,7 +1840,7 @@ fn main() -> VkResult<()> {
     camera.set_position(Vec3::new(0.0, 0.0, -1.1));
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
-    let mut app: ExampleApp = ExampleApp::builder::<Triangle, PhantomChain>()
+    let mut app: ExampleApp = ExampleApp::builder::<ShaderToy, PhantomChain>()
         .title("Vulkan Example - Basic indexed triangle")
         .settings(Settings {
             validation: true,
@@ -1845,9 +1852,10 @@ fn main() -> VkResult<()> {
         .height(height)
         .camera(camera)
         .build()?;
-    let mut example = Triangle::init(&mut app);
+    let mut example = ShaderToy::init(&mut app);
 
-    let mut multiplier = 1.0;
+    example.shader_name = String::from("meon_love");
+
     let mut frame_fn = |app: &mut ExampleApp| {
         if !app.prepared {
             example.prepare(app).expect("Failed to prepare example");
@@ -1856,46 +1864,25 @@ fn main() -> VkResult<()> {
 
         example.draw(app);
 
-        if let ExampleApp {
-            camera,
+        example.ubo_fs = UboFS {
+            mouse: Default::default(),
+            date: Default::default(),
+            resolution: Vec3::new(app.width as f32, app.height as f32, 1.0),
+            // channel_time: [0.0; 4],
+            // channel_resolution: [Vec3::default(); 4],
+            time: example.ubo_fs.time + example.ubo_fs.time_delta,
+            time_delta: app.frame_timer / 1000.0,
+            frame: app.frame_counter as i32,
+            frame_ate: app.last_fps as f32,
+            sample_rate: 0.0,
+        };
 
-            backend:
-                Some(RenderBackend {
-                    vulkan_device: device,
-                    draw_cmd_buffers,
-                    swapchain,
-                    current_buffer,
-                    descriptor_pool,
-                    ..
-                }),
-            ..
-        } = app
-        {
+        // Map uniform buffer and update it
+        let mut aligned_ubo_fs = example.aligned_ubo_fs.take().unwrap();
+        aligned_ubo_fs.copy_from_slice(std::slice::from_ref(&example.ubo_fs));
+        example.aligned_ubo_fs = Some(aligned_ubo_fs);
 
-            example.ubo_fs = UboFS {
-                resolution: Default::default(),
-                time: example.ubo_fs.time + multiplier * 0.0002,
-                time_delta: example.ubo_fs.time_delta + 1.0,
-                // frame: example.ubo_fs.frame + 1,
-                // frame_ate: example.ubo_fs.frame_ate + 1.0,
-                // channel_time: [0.0; 4],
-                // channel_resolution: [Vec3::default(); 4],
-                // mouse: Default::default(),
-                // date: Default::default(),
-                // sample_rate: 0.0,
-            };
-            if example.ubo_fs.time >= 1.0 {
-                multiplier = -1.0;
-            }
-            if example.ubo_fs.time <= 0.0 {
-                multiplier = 1.0;
-            }
-
-            // Map uniform buffer and update it
-            let mut aligned_ubo_fs = example.aligned_ubo_fs.take().unwrap();
-            aligned_ubo_fs.copy_from_slice(std::slice::from_ref(&example.ubo_fs));
-            example.aligned_ubo_fs = Some(aligned_ubo_fs);
-    };
+        // sleep(Duration::from_millis(100));
     };
     app.render_loop(&mut frame_fn)
 }

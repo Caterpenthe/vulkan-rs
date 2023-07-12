@@ -19,7 +19,6 @@ out gl_PerVertex
     vec4 gl_Position;
 };
 
-
 void main()
 {
 	outColor = inColor;

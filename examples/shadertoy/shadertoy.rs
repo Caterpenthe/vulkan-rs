@@ -1855,6 +1855,8 @@ fn main() -> VkResult<()> {
     let mut example = ShaderToy::init(&mut app);
 
     example.shader_name = String::from("meon_love");
+    // example.shader_name = String::from("heart_2d");
+    // example.shader_name = String::from("heart_3d");
 
     let mut frame_fn = |app: &mut ExampleApp| {
         if !app.prepared {

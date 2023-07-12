@@ -120,7 +120,9 @@ float getSegment(float t, vec2 pos, float offset){
 }
 
 void main(){
-    vec2 uv = 1.0 - (gl_FragCoord.xy / ubo.iResolution.xy);
+    // Reverse fragCoord for vulkan
+    vec2 fragCoord = ubo.iResolution.xy - gl_FragCoord.xy;
+    vec2 uv = fragCoord.xy / ubo.iResolution.xy;
     float widthHeightRatio = ubo.iResolution.x/ubo.iResolution.y;
     vec2 centre = vec2(0.5, 0.5);
     vec2 pos = centre - uv;

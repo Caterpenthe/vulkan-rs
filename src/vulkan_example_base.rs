@@ -101,7 +101,7 @@ pub struct MouseButtons {
     middle: bool,
 }
 
-pub trait Example {
+pub trait Example: vk::ExtendsPhysicalDeviceFeatures2 {
     fn init(base: &mut ExampleApp) -> Self;
 
     fn prepare(&mut self, base: &mut ExampleApp) -> VkResult<()>;
@@ -365,9 +365,7 @@ pub trait Example {
         }
         Ok(fences)
     }
-}
 
-pub trait DeviceFeaturesCustomize<T: vk::ExtendsPhysicalDeviceFeatures2> {
     fn get_enabled_features(
         physical_device: &vk::PhysicalDevice,
         enabled_features: &mut vk::PhysicalDeviceFeatures,
@@ -378,9 +376,8 @@ pub trait DeviceFeaturesCustomize<T: vk::ExtendsPhysicalDeviceFeatures2> {
         enabled_device_extensions: &mut Vec<&'static CStr>,
     ) {
     }
-    fn get_device_create_next_chain() -> Option<T> {
-        None
-    }
+
+    fn get_next_chain<T: vk::ExtendsPhysicalDeviceFeatures2>() -> Option<T>;
 }
 
 pub struct RenderBackend {
@@ -561,10 +558,9 @@ impl ExampleApp {
 
         unsafe { entry.create_instance(&instance_create_info, None) }
     }
-    fn init_render_backend<E, F>(&mut self, window: Arc<Window>) -> VkResult<()>
+    fn init_render_backend<E>(&mut self, window: Arc<Window>) -> VkResult<()>
     where
-        E: Example + DeviceFeaturesCustomize<F>,
-        F: vk::ExtendsPhysicalDeviceFeatures2,
+        E: Example + vk::ExtendsPhysicalDeviceFeatures2,
     {
         let _ = crate::tools::SimpleStat::new("init_render_backend");
 
@@ -603,14 +599,13 @@ impl ExampleApp {
         E::get_enabled_features(&physical_device, &mut self.enabled_features);
         // Derived examples can enable extensions based on the list of supported extensions read from the physical device
         E::get_enabled_extensions(&physical_device, &mut self.enabled_device_extensions);
-        let mut device_create_next_chain = E::get_device_create_next_chain();
 
         let vulkan_device = VulkanDevice::create(
             instance.clone(),
             physical_device,
             &self.enabled_features,
             &mut self.enabled_device_extensions,
-            device_create_next_chain.as_mut(),
+            E::get_next_chain::<E>(),
             None,
             true,
         )?;
@@ -832,19 +827,17 @@ impl ExampleApp {
 
     fn view_changed(&mut self) {}
 
-    pub fn builder<E, F>() -> ExampleAppBuilder<E, F>
+    pub fn builder<E>() -> ExampleAppBuilder<E>
     where
-        E: Example + DeviceFeaturesCustomize<F>,
-        F: vk::ExtendsPhysicalDeviceFeatures2,
+        E: Example,
     {
         ExampleAppBuilder::new()
     }
 }
 
-pub struct ExampleAppBuilder<E, F>
+pub struct ExampleAppBuilder<E>
 where
-    E: Example + DeviceFeaturesCustomize<F>,
-    F: vk::ExtendsPhysicalDeviceFeatures2,
+    E: Example,
 {
     settings: Settings,
     width: u32,
@@ -857,17 +850,14 @@ where
 
     enabled_instance_extensions: Vec<&'static CStr>,
 
-    device_create_next_chain: Option<F>,
-
     window_builder: WindowBuilder,
 
     _marker: PhantomData<E>,
 }
 
-impl<E, F> Default for ExampleAppBuilder<E, F>
+impl<E> Default for ExampleAppBuilder<E>
 where
-    E: Example + DeviceFeaturesCustomize<F>,
-    F: vk::ExtendsPhysicalDeviceFeatures2,
+    E: Example,
 {
     fn default() -> Self {
         ExampleAppBuilder {
@@ -885,8 +875,6 @@ where
 
             enabled_instance_extensions: vec![],
 
-            device_create_next_chain: None,
-
             window_builder: WindowBuilder::new(),
 
             _marker: PhantomData,
@@ -894,10 +882,9 @@ where
     }
 }
 
-impl<E, F> ExampleAppBuilder<E, F>
+impl<E> ExampleAppBuilder<E>
 where
-    E: Example + DeviceFeaturesCustomize<F>,
-    F: vk::ExtendsPhysicalDeviceFeatures2,
+    E: Example,
 {
     pub fn build(self) -> VkResult<ExampleApp> {
         let mut window_builder = self.window_builder;
@@ -971,7 +958,7 @@ where
             event_loop: Some(event_loop),
         };
 
-        vulkan_example.init_render_backend::<E, F>(window)?;
+        vulkan_example.init_render_backend::<E>(window)?;
         Ok(vulkan_example)
     }
 
@@ -992,10 +979,6 @@ where
         self
     }
 
-    pub fn device_create_next_chain(mut self, device_create_next_chain: F) -> Self {
-        self.device_create_next_chain = Some(device_create_next_chain);
-        self
-    }
     pub fn width(mut self, width: u32) -> Self {
         self.width = width;
         self

@@ -3,6 +3,7 @@
 use ash::prelude::VkResult;
 use ash::util::Align;
 use ash::vk;
+use ash::vk::{ExtendsPhysicalDeviceFeatures2, PhysicalDevice, PhysicalDeviceFeatures};
 use glam::{Vec3, Vec4};
 use memoffset::offset_of;
 use std::ffi::CStr;
@@ -69,32 +70,41 @@ pub struct Triangle {
     ubo_vs: UboVS,
 
     /// The pipeline layout is used by a pipeline to access the descriptor sets.
+    ///
     /// It defines interface (without binding any actual data) between the shader stages used by the pipeline and the shader resources.
+    ///
     /// A pipeline layout can be shared among multiple pipelines as long as their interfaces match.
     pipeline_layout: vk::PipelineLayout,
 
     /// Pipelines (often called "pipeline state objects") are used to bake all states that affect a pipeline.
+    ///
     /// While in OpenGL every state can be changed at (almost) any time, Vulkan requires to layout the graphics (and compute) pipeline states upfront.
+    ///
     /// So for each combination of non-dynamic pipeline states you need a new pipeline (there are a few exceptions to this not discussed here).
+    ///
     /// Even though this adds a new dimension of planing ahead, it's a great opportunity for performance optimizations by the driver.
     pipeline: vk::Pipeline,
 
     /// The descriptor set layout describes the shader binding layout (without actually referencing descriptor)
+    ///
     /// Like the pipeline layout it's pretty much a blueprint and can be used with different descriptor sets as long as their layout matches.
     descriptor_set_layout: vk::DescriptorSetLayout,
 
     /// The descriptor set stores the resources bound to the binding points in a shader.
+    ///
     /// It connects the binding points of the different shaders with the buffers and images used for those bindings.
     descriptor_set: vk::DescriptorSet,
 
     // Synchronization primitives
     // Synchronization is an important concept of Vulkan that OpenGL mostly hid away. Getting this right is crucial to using Vulkan.
     /// Semaphores
+    ///
     /// Used to coordinate operations within the graphics queue and ensure correct command ordering
     present_complete_semaphore: vk::Semaphore,
     render_complete_semaphore: vk::Semaphore,
 
     /// Fences
+    ///
     /// Used to check the completion of queue operations (e.g. command buffer execution)
     queue_complete_fences: Vec<vk::Fence>,
 }
@@ -131,6 +141,8 @@ impl Default for Triangle {
         }
     }
 }
+
+unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for Triangle {}
 
 impl Example for Triangle {
     fn init(app: &mut ExampleApp) -> Self {
@@ -486,6 +498,22 @@ impl Example for Triangle {
                 .logical_device
                 .create_render_pass(&render_pass_info, None)
         }
+    }
+
+    fn get_enabled_features(
+        physical_device: &PhysicalDevice,
+        enabled_features: &mut PhysicalDeviceFeatures,
+    ) {
+    }
+
+    fn get_enabled_extensions(
+        physical_device: &PhysicalDevice,
+        enabled_device_extensions: &mut Vec<&'static CStr>,
+    ) {
+    }
+
+    fn get_next_chain<T: ExtendsPhysicalDeviceFeatures2>() -> Option<T> {
+        None
     }
 }
 
@@ -1683,8 +1711,6 @@ fn load_spirv_shader(device: &VulkanDevice, path: &std::path::Path) -> VkResult<
     }
 }
 
-impl DeviceFeaturesCustomize<PhantomChain> for Triangle {}
-
 fn main() -> VkResult<()> {
     let width = 1280;
     let height = 720;
@@ -1693,7 +1719,7 @@ fn main() -> VkResult<()> {
     camera.set_position(Vec3::new(0.0, 0.0, -1.5));
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
-    let mut app: ExampleApp = ExampleApp::builder::<Triangle, PhantomChain>()
+    let mut app: ExampleApp = ExampleApp::builder::<Triangle>()
         .title("Vulkan Example - Basic indexed triangle")
         .settings(Settings {
             validation: true,

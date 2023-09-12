@@ -2,7 +2,7 @@ use ash::prelude::VkResult;
 use ash::vk::{self, PhysicalDeviceMemoryProperties, PhysicalDeviceProperties, QueueFlags};
 use ash::{Device, Instance};
 use std::ffi::CStr;
-use std::ops::BitOr;
+use std::ops::{BitOr, Deref};
 use std::sync::Arc;
 
 pub struct QueueFamilyIndices {
@@ -44,13 +44,13 @@ pub struct VulkanDevice {
 }
 
 impl VulkanDevice {
-    pub fn create<T: vk::ExtendsPhysicalDeviceFeatures2>(
+    pub fn create<E: vk::ExtendsPhysicalDeviceFeatures2>(
         instance: Arc<Instance>,
         physical_device: vk::PhysicalDevice,
 
         enabled_features: &vk::PhysicalDeviceFeatures,
         enabled_extensions: &mut Vec<&CStr>,
-        next_chain: Option<&mut T>,
+        next_chain: Option<E>,
 
         requested_queue_types: Option<vk::QueueFlags>,
         use_swap_chain: bool,
@@ -179,10 +179,10 @@ impl VulkanDevice {
 
         // If a pNext(Chain) has been passed, we need to add it to the device creation info
         let mut physical_device_features2: vk::PhysicalDeviceFeatures2;
-        if let Some(next_chain) = next_chain {
+        if let Some(mut next_chain) = next_chain {
             physical_device_features2 = vk::PhysicalDeviceFeatures2::builder()
                 .features(*enabled_features)
-                .push_next(next_chain)
+                .push_next(&mut next_chain)
                 .build();
             device_create_info = device_create_info.push_next(&mut physical_device_features2);
         }

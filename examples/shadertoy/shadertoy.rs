@@ -10,6 +10,7 @@ use std::ffi::CStr;
 use std::mem::{align_of, size_of};
 use std::thread::sleep;
 use std::time::Duration;
+use ash::vk::{ExtendsPhysicalDeviceFeatures2, PhysicalDevice, PhysicalDeviceFeatures};
 use vulkan_rs::camera::{Camera, CameraType};
 use vulkan_rs::vulkan_device::VulkanDevice;
 use vulkan_rs::vulkan_example_base::*;
@@ -184,6 +185,8 @@ impl Default for ShaderToy {
         }
     }
 }
+
+unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for ShaderToy {}
 
 impl Example for ShaderToy {
     fn init(app: &mut ExampleApp) -> Self {
@@ -539,6 +542,18 @@ impl Example for ShaderToy {
                 .logical_device
                 .create_render_pass(&render_pass_info, None)
         }
+    }
+
+    fn get_enabled_features(physical_device: &PhysicalDevice, enabled_features: &mut PhysicalDeviceFeatures) {
+
+    }
+
+    fn get_enabled_extensions(physical_device: &PhysicalDevice, enabled_device_extensions: &mut Vec<&'static CStr>) {
+
+    }
+
+    fn get_next_chain<T: ExtendsPhysicalDeviceFeatures2>() -> Option<T> {
+        None
     }
 }
 
@@ -2003,8 +2018,6 @@ fn load_spirv_shader(device: &VulkanDevice, path: &std::path::Path) -> VkResult<
     }
 }
 
-impl DeviceFeaturesCustomize<PhantomChain> for ShaderToy {}
-
 fn main() -> VkResult<()> {
     let shader_name = String::from("meon_love");
     //let shader_name = String::from("heart_2d");
@@ -2019,7 +2032,7 @@ fn main() -> VkResult<()> {
     camera.set_position(Vec3::new(0.0, 0.0, -1.1));
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
-    let mut app: ExampleApp = ExampleApp::builder::<ShaderToy, PhantomChain>()
+    let mut app: ExampleApp = ExampleApp::builder::<ShaderToy>()
         .title(title.as_str())
         .settings(Settings {
             validation: true,

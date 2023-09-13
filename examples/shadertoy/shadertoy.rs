@@ -184,12 +184,12 @@ impl Default for ShaderToy {
 }
 
 impl Example for ShaderToy {
-    fn init(_app: &mut ExampleApp) -> Self {
+    fn init(_context: &mut ExampleContext) -> Self {
         Self::default()
     }
 
-    fn prepare(&mut self, app: &mut ExampleApp) -> VkResult<()> {
-        if let ExampleApp {
+    fn prepare(&mut self, context: &mut ExampleContext) -> VkResult<()> {
+        if let ExampleContext {
             camera,
             shader_dir,
             backend:
@@ -203,7 +203,7 @@ impl Example for ShaderToy {
                     ..
                 }),
             ..
-        } = app
+        } = context
         {
             self.prepare_synchronization_primitives(device, draw_cmd_buffers)?;
             self.prepare_vertices(device, cmd_pool, USE_STAGING)?;
@@ -214,7 +214,7 @@ impl Example for ShaderToy {
             self.setup_descriptor_pool(device, descriptor_pool)?;
             self.setup_descriptor_set(device, descriptor_pool)?;
             if !DRAW_EVERY_FRAME {
-                self.build_command_buffers(app);
+                self.build_command_buffers(context);
             }
         } else {
             return Err(vk::Result::ERROR_INITIALIZATION_FAILED);
@@ -223,8 +223,8 @@ impl Example for ShaderToy {
         Ok(())
     }
 
-    fn build_command_buffers(&mut self, app: &mut ExampleApp) {
-        if let ExampleApp {
+    fn build_command_buffers(&mut self, context: &mut ExampleContext) {
+        if let ExampleContext {
             width,
             height,
             backend:
@@ -236,7 +236,7 @@ impl Example for ShaderToy {
                     ..
                 }),
             ..
-        } = app
+        } = context
         {
             let cmd_buf_info = vk::CommandBufferBeginInfo::builder();
 
@@ -275,7 +275,7 @@ impl Example for ShaderToy {
                         .begin_command_buffer(*draw_cmd_buffer, &cmd_buf_info)
                         .expect("Failed to begin command buffer");
 
-                    // Start the first sub pass specified in our default render pass setup by the app class
+                    // Start the first sub pass specified in our default render pass setup by the context class
                     // This will clear the color and depth attachment
                     device.logical_device.cmd_begin_render_pass(
                         *draw_cmd_buffer,
@@ -1036,7 +1036,7 @@ impl ShaderToy {
         // Get the memory type index that supports host visible memory access
         // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
         // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular app
+        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular context
         alloc_info = alloc_info.memory_type_index(get_memory_type_index(
             mem_reqs.memory_type_bits,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -1081,7 +1081,7 @@ impl ShaderToy {
         // Get the memory type index that supports host visible memory access
         // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
         // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular app
+        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular context
         alloc_info = alloc_info.memory_type_index(get_memory_type_index(
             mem_reqs.memory_type_bits,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -1127,7 +1127,7 @@ impl ShaderToy {
         // Get the memory type index that supports host visible memory access
         // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
         // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular app
+        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular context
         alloc_info = alloc_info.memory_type_index(get_memory_type_index(
             mem_reqs.memory_type_bits,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -1653,8 +1653,8 @@ impl ShaderToy {
         Ok(())
     }
 
-    fn record_submit_command_buffer(&mut self, app: &mut ExampleApp) {
-        if let ExampleApp {
+    fn record_submit_command_buffer(&mut self, context: &mut ExampleContext) {
+        if let ExampleContext {
             width,
             height,
             backend:
@@ -1667,7 +1667,7 @@ impl ShaderToy {
                     ..
                 }),
             ..
-        } = app
+        } = context
         {
             // Use a fence to wait until the command buffer has finished execution before using it again
             unsafe {
@@ -1725,7 +1725,7 @@ impl ShaderToy {
                     .begin_command_buffer(draw_cmd_buffer, &cmd_buf_info)
                     .expect("Failed to begin command buffer");
 
-                // Start the first sub pass specified in our default render pass setup by the app class
+                // Start the first sub pass specified in our default render pass setup by the context class
                 // This will clear the color and depth attachment
                 device.logical_device.cmd_begin_render_pass(
                     draw_cmd_buffer,
@@ -1813,8 +1813,8 @@ impl ShaderToy {
         }
     }
 
-    fn draw(&mut self, app: &mut ExampleApp) {
-        let res = app
+    fn draw(&mut self, context: &mut ExampleContext) {
+        let res = context
             .backend
             .as_mut()
             .unwrap()
@@ -1822,7 +1822,7 @@ impl ShaderToy {
             .acquire_next_image(self.present_complete_semaphore);
         match res {
             Ok((index, _)) => {
-                app.backend.as_mut().unwrap().current_buffer = index;
+                context.backend.as_mut().unwrap().current_buffer = index;
             }
             _ => {
                 panic!("Failed to acquire next image");
@@ -1830,10 +1830,10 @@ impl ShaderToy {
         };
 
         if DRAW_EVERY_FRAME {
-            self.record_submit_command_buffer(app);
+            self.record_submit_command_buffer(context);
         }
 
-        if let ExampleApp {
+        if let ExampleContext {
             backend:
                 Some(RenderBackend {
                     vulkan_device: device,
@@ -1843,7 +1843,7 @@ impl ShaderToy {
                     ..
                 }),
             ..
-        } = app
+        } = context
         {
             if !DRAW_EVERY_FRAME {
                 // Use a fence to wait until the command buffer has finished execution before using it again
@@ -2030,7 +2030,7 @@ fn main() -> VkResult<()> {
     camera.set_position(Vec3::new(0.0, 0.0, -1.1));
     camera.set_rotation(Vec3::new(0.0, 0.0, 0.0));
     camera.set_perspective(90.0, width as f32 / height as f32, 1.0, 256.0);
-    let mut app: ExampleApp = ExampleApp::builder::<ShaderToy>()
+    let mut context: ExampleContext = ExampleContext::builder::<ShaderToy>()
         .title(title.as_str())
         .settings(Settings {
             validation: true,
@@ -2042,28 +2042,28 @@ fn main() -> VkResult<()> {
         .height(height)
         .camera(camera)
         .build::<PhantomFeatures>()?;
-    let mut example = ShaderToy::init(&mut app);
+    let mut example = ShaderToy::init(&mut context);
 
     example.shader_name = shader_name;
 
-    let mut frame_fn = |app: &mut ExampleApp| {
-        if !app.prepared {
-            example.prepare(app).expect("Failed to prepare example");
-            app.prepared = true;
+    let mut frame_fn = |context: &mut ExampleContext| {
+        if !context.prepared {
+            example.prepare(context).expect("Failed to prepare example");
+            context.prepared = true;
         }
 
-        example.draw(app);
+        example.draw(context);
 
         example.ubo_fs = UboFS {
             mouse: Default::default(),
             date: Default::default(),
-            resolution: Vec3::new(app.width as f32, app.height as f32, 1.0),
+            resolution: Vec3::new(context.width as f32, context.height as f32, 1.0),
             // channel_time: [0.0; 4],
             // channel_resolution: [Vec3::default(); 4],
             time: example.ubo_fs.time + example.ubo_fs.time_delta,
-            time_delta: app.frame_timer / 1000.0,
-            frame: app.frame_counter as i32,
-            frame_ate: app.last_fps as f32,
+            time_delta: context.frame_timer / 1000.0,
+            frame: context.frame_counter as i32,
+            frame_ate: context.last_fps as f32,
             sample_rate: 0.0,
         };
 
@@ -2074,5 +2074,5 @@ fn main() -> VkResult<()> {
 
         // sleep(Duration::from_millis(100));
     };
-    app.render_loop(&mut frame_fn)
+    context.render_loop(&mut frame_fn)
 }

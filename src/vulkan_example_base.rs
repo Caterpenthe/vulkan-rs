@@ -102,11 +102,11 @@ pub struct MouseButtons {
 }
 
 pub trait Example {
-    fn init(base: &mut ExampleApp) -> Self;
+    fn init(base: &mut ExampleContext) -> Self;
 
-    fn prepare(&mut self, base: &mut ExampleApp) -> VkResult<()>;
+    fn prepare(&mut self, base: &mut ExampleContext) -> VkResult<()>;
 
-    fn build_command_buffers(&mut self, base: &mut ExampleApp) {}
+    fn build_command_buffers(&mut self, base: &mut ExampleContext) {}
 
     fn setup_depth_stencil(
         depth_format: vk::Format,
@@ -417,7 +417,7 @@ pub struct RenderBackend {
 pub struct PhantomFeatures();
 unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for PhantomFeatures {}
 
-pub struct ExampleApp {
+pub struct ExampleContext {
     pub dest_width: u32,
     pub dest_height: u32,
     pub resizing: bool,
@@ -468,7 +468,7 @@ pub struct ExampleApp {
     event_loop: Option<EventLoop<()>>,
 }
 
-impl ExampleApp {
+impl ExampleContext {
     fn create_instance(&mut self, entry: &Entry, window: Arc<Window>) -> VkResult<Instance> {
         let app_info = vk::ApplicationInfo::builder()
             .application_name(self.name.as_c_str())
@@ -826,15 +826,15 @@ impl ExampleApp {
 
     fn view_changed(&mut self) {}
 
-    pub fn builder<E>() -> ExampleAppBuilder<E>
+    pub fn builder<E>() -> ExampleContextBuilder<E>
     where
         E: Example,
     {
-        ExampleAppBuilder::new()
+        ExampleContextBuilder::new()
     }
 }
 
-pub struct ExampleAppBuilder<E>
+pub struct ExampleContextBuilder<E>
 where
     E: Example,
 {
@@ -854,12 +854,12 @@ where
     _marker: PhantomData<E>,
 }
 
-impl<E> Default for ExampleAppBuilder<E>
+impl<E> Default for ExampleContextBuilder<E>
 where
     E: Example,
 {
     fn default() -> Self {
-        ExampleAppBuilder {
+        ExampleContextBuilder {
             settings: Settings::default(),
             width: 1280,
             height: 720,
@@ -881,11 +881,11 @@ where
     }
 }
 
-impl<E> ExampleAppBuilder<E>
+impl<E> ExampleContextBuilder<E>
 where
     E: Example,
 {
-    pub fn build<T: vk::ExtendsPhysicalDeviceFeatures2>(self) -> VkResult<ExampleApp> {
+    pub fn build<T: vk::ExtendsPhysicalDeviceFeatures2>(self) -> VkResult<ExampleContext> {
         let mut window_builder = self.window_builder;
         window_builder = window_builder
             .with_title(self.name.to_str().unwrap_or_default())
@@ -906,7 +906,7 @@ where
         }
         let window = Arc::new(window_builder.build(&event_loop).expect("window"));
 
-        let mut vulkan_example = ExampleApp {
+        let mut vulkan_example = ExampleContext {
             dest_width: 0,
             dest_height: 0,
             resizing: false,

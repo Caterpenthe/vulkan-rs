@@ -3,14 +3,11 @@
 use ash::prelude::VkResult;
 use ash::util::Align;
 use ash::vk;
-use chrono::format::Numeric::Timestamp;
+use ash::vk::{ExtendsPhysicalDeviceFeatures2, PhysicalDevice, PhysicalDeviceFeatures};
 use glam::{Vec3, Vec4};
 use memoffset::offset_of;
 use std::ffi::CStr;
 use std::mem::{align_of, size_of};
-use std::thread::sleep;
-use std::time::Duration;
-use ash::vk::{ExtendsPhysicalDeviceFeatures2, PhysicalDevice, PhysicalDeviceFeatures};
 use vulkan_rs::camera::{Camera, CameraType};
 use vulkan_rs::vulkan_device::VulkanDevice;
 use vulkan_rs::vulkan_example_base::*;
@@ -186,10 +183,8 @@ impl Default for ShaderToy {
     }
 }
 
-unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for ShaderToy {}
-
 impl Example for ShaderToy {
-    fn init(app: &mut ExampleApp) -> Self {
+    fn init(_app: &mut ExampleApp) -> Self {
         Self::default()
     }
 
@@ -238,7 +233,6 @@ impl Example for ShaderToy {
                     draw_cmd_buffers,
                     render_pass,
                     frame_buffers,
-                    current_buffer,
                     ..
                 }),
             ..
@@ -544,12 +538,16 @@ impl Example for ShaderToy {
         }
     }
 
-    fn get_enabled_features(physical_device: &PhysicalDevice, enabled_features: &mut PhysicalDeviceFeatures) {
-
+    fn get_enabled_features(
+        _physical_device: &PhysicalDevice,
+        _enabled_features: &mut PhysicalDeviceFeatures,
+    ) {
     }
 
-    fn get_enabled_extensions(physical_device: &PhysicalDevice, enabled_device_extensions: &mut Vec<&'static CStr>) {
-
+    fn get_enabled_extensions(
+        _physical_device: &PhysicalDevice,
+        _enabled_device_extensions: &mut Vec<&'static CStr>,
+    ) {
     }
 
     fn get_next_chain<T: ExtendsPhysicalDeviceFeatures2>() -> Option<T> {
@@ -1112,7 +1110,7 @@ impl ShaderToy {
         };
 
         // sampler2d Channel0
-        let image_size = (size_of::<u8>() * 1024 * 1024);
+        let image_size = size_of::<u8>() * 1024 * 1024;
         let mut alloc_info = vk::MemoryAllocateInfo::builder()
             .allocation_size(0)
             .memory_type_index(0);
@@ -2043,7 +2041,7 @@ fn main() -> VkResult<()> {
         .width(width)
         .height(height)
         .camera(camera)
-        .build()?;
+        .build::<PhantomFeatures>()?;
     let mut example = ShaderToy::init(&mut app);
 
     example.shader_name = shader_name;

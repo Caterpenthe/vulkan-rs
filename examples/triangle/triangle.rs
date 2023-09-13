@@ -142,10 +142,8 @@ impl Default for Triangle {
     }
 }
 
-unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for Triangle {}
-
 impl Example for Triangle {
-    fn init(app: &mut ExampleApp) -> Self {
+    fn init(_app: &mut ExampleApp) -> Self {
         Self::default()
     }
 
@@ -194,7 +192,6 @@ impl Example for Triangle {
                     draw_cmd_buffers,
                     render_pass,
                     frame_buffers,
-                    current_buffer,
                     ..
                 }),
             ..
@@ -501,14 +498,14 @@ impl Example for Triangle {
     }
 
     fn get_enabled_features(
-        physical_device: &PhysicalDevice,
-        enabled_features: &mut PhysicalDeviceFeatures,
+        _physical_device: &PhysicalDevice,
+        _enabled_features: &mut PhysicalDeviceFeatures,
     ) {
     }
 
     fn get_enabled_extensions(
-        physical_device: &PhysicalDevice,
-        enabled_device_extensions: &mut Vec<&'static CStr>,
+        _physical_device: &PhysicalDevice,
+        _enabled_device_extensions: &mut Vec<&'static CStr>,
     ) {
     }
 
@@ -1730,7 +1727,7 @@ fn main() -> VkResult<()> {
         .width(width)
         .height(height)
         .camera(camera)
-        .build()?;
+        .build::<PhantomFeatures>()?;
     let mut example = Triangle::init(&mut app);
     let mut frame_fn = |app: &mut ExampleApp| {
         if !app.prepared {

@@ -101,7 +101,7 @@ pub struct MouseButtons {
     middle: bool,
 }
 
-pub trait Example: vk::ExtendsPhysicalDeviceFeatures2 {
+pub trait Example {
     fn init(base: &mut ExampleApp) -> Self;
 
     fn prepare(&mut self, base: &mut ExampleApp) -> VkResult<()>;
@@ -369,13 +369,11 @@ pub trait Example: vk::ExtendsPhysicalDeviceFeatures2 {
     fn get_enabled_features(
         physical_device: &vk::PhysicalDevice,
         enabled_features: &mut vk::PhysicalDeviceFeatures,
-    ) {
-    }
+    );
     fn get_enabled_extensions(
         physical_device: &vk::PhysicalDevice,
         enabled_device_extensions: &mut Vec<&'static CStr>,
-    ) {
-    }
+    );
 
     fn get_next_chain<T: vk::ExtendsPhysicalDeviceFeatures2>() -> Option<T>;
 }
@@ -416,8 +414,8 @@ pub struct RenderBackend {
     shader_modules: Vec<vk::ShaderModule>,
 }
 
-pub struct PhantomChain();
-unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for PhantomChain {}
+pub struct PhantomFeatures();
+unsafe impl vk::ExtendsPhysicalDeviceFeatures2 for PhantomFeatures {}
 
 pub struct ExampleApp {
     pub dest_width: u32,
@@ -558,9 +556,10 @@ impl ExampleApp {
 
         unsafe { entry.create_instance(&instance_create_info, None) }
     }
-    fn init_render_backend<E>(&mut self, window: Arc<Window>) -> VkResult<()>
+    fn init_render_backend<E, T>(&mut self, window: Arc<Window>) -> VkResult<()>
     where
-        E: Example + vk::ExtendsPhysicalDeviceFeatures2,
+        E: Example,
+        T: vk::ExtendsPhysicalDeviceFeatures2,
     {
         let _ = crate::tools::SimpleStat::new("init_render_backend");
 
@@ -605,7 +604,7 @@ impl ExampleApp {
             physical_device,
             &self.enabled_features,
             &mut self.enabled_device_extensions,
-            E::get_next_chain::<E>(),
+            E::get_next_chain::<T>(),
             None,
             true,
         )?;
@@ -886,7 +885,7 @@ impl<E> ExampleAppBuilder<E>
 where
     E: Example,
 {
-    pub fn build(self) -> VkResult<ExampleApp> {
+    pub fn build<T: vk::ExtendsPhysicalDeviceFeatures2>(self) -> VkResult<ExampleApp> {
         let mut window_builder = self.window_builder;
         window_builder = window_builder
             .with_title(self.name.to_str().unwrap_or_default())
@@ -944,7 +943,7 @@ where
             mouse_pos: Vec2::new(0.0, 0.0),
             title: self.title,
             name: self.name,
-            api_version: ash::vk::API_VERSION_1_0,
+            api_version: vk::API_VERSION_1_0,
             gamepad_state: Default::default(),
             mouse_buttons: Default::default(),
 
@@ -958,7 +957,7 @@ where
             event_loop: Some(event_loop),
         };
 
-        vulkan_example.init_render_backend::<E>(window)?;
+        vulkan_example.init_render_backend::<E, T>(window)?;
         Ok(vulkan_example)
     }
 

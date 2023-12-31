@@ -11,3 +11,5 @@ pub mod vulkan_initializers;
 pub mod vulkan_surface;
 pub mod vulkan_swap_chain;
 pub mod vulkan_ui_overlay;
+
+pub mod vulkan_texture;
